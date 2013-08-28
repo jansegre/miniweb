@@ -68,6 +68,7 @@ int main() {
   listen(sockfd, MAX_CONN_QUEUE);
 
   // serial processing of conections
+  //TODO spawn many threads for concurrent connections
   for (;;) {
     int n;
     n = process_connection(sockfd);
@@ -167,19 +168,25 @@ int process_request(int sockfd) {
   write(sockfd, "\n", 1);
 
   // send the requested file
+  /*
 #ifdef __linux__
   n = sendfile(sockfd, fd, &offset, st.st_size);
 #else
   n = sendfile(fd, sockfd, offset, &offset, 0, 0);
 #endif
   if (n < 0) goto error;
+  */
+  do {
+    n = read(fd, buffer, BUFFER_LEN);
+    if (write(sockfd, buffer, n) < 0) goto error;
+  } while (n > 0);
 
   if (close(fd) < 0) goto error_close;
   printf("ok\n");
   return 0;
 
 error:
-  if (fd < 0) if (close(fd) < 0) goto error_close;
+  if (fd > 0) if (close(fd) < 0) goto error_close;
   perror("ERROR processing the request");
   return 1;
 
