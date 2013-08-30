@@ -37,8 +37,26 @@ int process_connection(int sockfd, const char* path);
 int process_request(int sockfd, const char* path);
 int server(const int port, const char* path);
 
-int main(int argv, char* args[]) {
-  return server(LISTEN_PORT, PATH_TO_SERVE);
+int main(int argc, char* argv[]) {
+  int opt;
+  int port = LISTEN_PORT;
+  char *path = PATH_TO_SERVE;
+
+  while ((opt = getopt(argc, argv, "l:s:")) != -1) {
+    switch (opt) {
+      case 'l':
+        port = atoi(optarg);
+        break;
+      case 's':
+        path = optarg;
+        break;
+      default:
+        fprintf(stderr, "Usage: %s [-l port] [-s path]\n", argv[0]);
+        return 1;
+    }
+  }
+
+  return server(port, path);
 }
 
 int server(const int port, const char* path) {
