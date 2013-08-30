@@ -21,9 +21,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#ifdef __linux__
-#include <sys/sendfile.h>
-#endif
 #include <netinet/in.h>
 
 #define LISTEN_PORT 5001
@@ -198,14 +195,6 @@ int process_request(int sockfd, const char* path) {
   write(sockfd, "\n", 1);
 
   // send the requested file
-  /*
-#ifdef __linux__
-  n = sendfile(sockfd, fd, &offset, st.st_size);
-#else
-  n = sendfile(fd, sockfd, offset, &offset, 0, 0);
-#endif
-  if (n < 0) goto error;
-  */
   do {
     n = read(fd, buffer, BUFFER_LEN);
     if (write(sockfd, buffer, n) < 0) goto error;
