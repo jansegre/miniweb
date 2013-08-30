@@ -15,6 +15,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -138,7 +139,6 @@ error:
 
 int process_request(int sockfd, const char* path) {
   int fd, n;
-  off_t offset;
   struct stat st;
   char buffer[BUFFER_LEN],
        verb[32],
