@@ -125,12 +125,7 @@ int process_connection(int sockfd, const char* path) {
   if (newsockfd < 0) goto error;
 
   // process multiple packets
-  //for (;;) {
-  //  n = process_request(newsockfd);
-  //  if (n) {
-  //    break;
-  //  }
-  //}
+  //for (;process_request(newsockfd, path) == 0;);
 
   // process a single packet
   if (process_request(newsockfd, path) != 0) goto error;
@@ -146,11 +141,7 @@ error:
 
 int process_request(int sockfd, const char* path) {
   int n;
-  char buffer[BUFFER_LEN],
-       verb[32],
-       httpver[32],
-       filepath[MAX_FILENAME],
-       *url;
+  char buffer[BUFFER_LEN], verb[10], httpver[10], filepath[MAX_FILENAME], *url;
 
   // copy the given path to our filename
   strcpy(filepath, path);
@@ -171,21 +162,19 @@ int process_request(int sockfd, const char* path) {
   // local log
   printf("%s %s %s ... ", verb, url, httpver);
 
-  // check HTTP version
+  // check HTTP version and method
   if (strcmp("HTTP/1.1", httpver) != 0 && strcmp("HTTP/1.0", httpver) != 0) {
+    write(sockfd, "HTTP/1.0 505 HTTP Version Not Supported\r\n\r\n", 43);
     fprintf(stderr, "version %s not supported, aborting.\n", httpver);
-    goto error;
-  }
-
-  // select the method
-  if (strcmp("GET", verb) == 0) {
+    return 0;
+  } else if (strcmp("GET", verb) == 0) {
     // make a get request
     return serve_file(sockfd, filepath, 1);
   } else if (strcmp("HEAD", verb) == 0) {
     // make a get request
     return serve_file(sockfd, filepath, 0);
   } else {
-    write(sockfd, "HTTP/1.0 400 Method Not Supported\n\n", 35);
+    write(sockfd, "HTTP/1.0 400 Method Not Supported\r\n\r\n", 37);
     fprintf(stderr, "requested method %s not supported.\n", verb);
     return 0;
   }
@@ -203,7 +192,7 @@ int serve_file(int sockfd, const char* filepath, int serve) {
   // try to open the requested file
   fd = open(filepath, O_RDONLY, S_IREAD);
   if (fd < 0) {
-    write(sockfd, "HTTP/1.0 404 Not Found\n\n", 24);
+    write(sockfd, "HTTP/1.0 404 Not Found\r\n\r\n", 26);
     printf("not found\n");
     fprintf(stderr, "ERROR ");
     perror(filepath);
@@ -212,14 +201,14 @@ int serve_file(int sockfd, const char* filepath, int serve) {
 
   // check the file size
   stat(filepath, &st);
-  sprintf(contentlen, "Content-Length: %lli\n", (long long)st.st_size);
+  sprintf(contentlen, "Content-Length: %lli\r\n", (long long)st.st_size);
 
   // write headers
-  write(sockfd, "HTTP/1.0 200 OK\n", 16);
-  write(sockfd, "Server: nanoweb-0.0.1\n", 22);
+  write(sockfd, "HTTP/1.0 200 OK\r\n", 17);
+  write(sockfd, "Server: nanoweb-0.0.1\r\n", 23);
   if (serve)
     write(sockfd, contentlen, strlen(contentlen));
-  write(sockfd, "\n", 1);
+  write(sockfd, "\r\n", 2);
 
   // send the requested file
   if (serve) {
