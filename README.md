@@ -1,4 +1,4 @@
-miniweb
+nanoweb
 =======
 
-A mini HTTP web server made to learn sockets.
+A nano HTTP web server made to learn sockets.

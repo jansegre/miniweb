@@ -1,5 +1,5 @@
 /*
- * miniweb - A mini HTTP web server made for learning sockets.
+ * nanoweb - A nano HTTP web server made for learning sockets.
  * Copyright (C) 2013 Jan Segre
  *
  * This program is free software: you can redistribute it and/or modify
@@ -163,7 +163,7 @@ int process_request(int sockfd) {
 
   // write headers
   write(sockfd, "HTTP/1.0 200 OK\n", 16);
-  write(sockfd, "Server: miniweb-0.0.1\n", 22);
+  write(sockfd, "Server: nanoweb-0.0.1\n", 22);
   write(sockfd, contentlen, strlen(contentlen));
   write(sockfd, "\n", 1);
 
