@@ -14,7 +14,8 @@
  *
  */
 
-#if !(defined(__linux__) || defined(__APPLE__))
+// the __linux__ macro is a subset of __unix__
+#if !(defined(__unix__) || defined(__APPLE__))
 #error "Your platform is not supported."
 #endif
 #include <stdio.h>
@@ -232,7 +233,7 @@ int serve_file(int sockfd, const char* filepath, int serve) {
       offset += n;
       if (n < 0) goto error;
     } while (n > 0);
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__unix__)
     do {
       n = sendfile(fd, sockfd, offset, &offset, 0, 0);
       if (n < 0) goto error;
