@@ -130,7 +130,13 @@ int process_connection(int sockfd, const char* path) {
   // process a single packet
   n = process_request(newsockfd, path);
   if (n < 0) goto error;
+  if (n > 0) goto warning;
 
+  close(newsockfd);
+  return 0;
+
+warning:
+  fprintf(stderr, "WARN something bad happened processing the request");
   close(newsockfd);
   return 0;
 
@@ -144,6 +150,9 @@ int process_request(int sockfd, const char* path) {
   int fd, n;
   struct stat st;
   off_t offset;
+#ifdef __linux__
+  ssize_t sent;
+#endif
   char buffer[BUFFER_LEN],
        verb[32],
        httpver[32],
@@ -190,7 +199,7 @@ int process_request(int sockfd, const char* path) {
 
   // check the file size
   stat(filename, &st);
-  sprintf(contentlen, "Content-Length: %lli\n", st.st_size);
+  sprintf(contentlen, "Content-Length: %lli\n", (long long)st.st_size);
 
   // write headers
   write(sockfd, "HTTP/1.0 200 OK\n", 16);
@@ -199,22 +208,21 @@ int process_request(int sockfd, const char* path) {
   write(sockfd, "\n", 1);
 
   // send the requested file
-#ifdef __linux__
-  for (size_t size_to_send = st.st_size; size_to_send > 0;) {
-    ssize_t sent = sendfile(sockd, fd, &offset, size_to_send);
-    if (sent <= 0) {
-      if (sent < 0) goto error;
-      break;
-    }
-    offset += sent;
-    size_to_send -= sent;
-  }
-#else
   offset = 0;
+#if defined(__linux__)
+  sent = 0;
+  do {
+    sent = sendfile(sockfd, fd, &offset, st.st_size - sent);
+    offset += sent;
+    if (sent < 0) goto error;
+  } while (sent > 0);
+#elif defined(__APPLE__)
   do {
     n = sendfile(fd, sockfd, offset, &offset, 0, 0);
     if (n < 0) goto error;
   } while (offset != 0);
+#else
+#error "Your platform is not supported."
 #endif
 
   if (close(fd) < 0) goto error_close;
