@@ -14,6 +14,9 @@
  *
  */
 
+#if !(defined(__linux__) || defined(__APPLE__))
+#error "Your platform is not supported."
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -221,8 +224,6 @@ int process_request(int sockfd, const char* path) {
     n = sendfile(fd, sockfd, offset, &offset, 0, 0);
     if (n < 0) goto error;
   } while (offset != 0);
-#else
-#error "Your platform is not supported."
 #endif
 
   if (close(fd) < 0) goto error_close;
