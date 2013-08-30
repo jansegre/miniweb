@@ -22,6 +22,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#ifdef __linux__
+#include <sys/sendfile.h>
+#endif
 #include <netinet/in.h>
 
 #define LISTEN_PORT 5001
@@ -140,6 +143,7 @@ error:
 int process_request(int sockfd, const char* path) {
   int fd, n;
   struct stat st;
+  off_t offset;
   char buffer[BUFFER_LEN],
        verb[32],
        httpver[32],
@@ -195,10 +199,12 @@ int process_request(int sockfd, const char* path) {
   write(sockfd, "\n", 1);
 
   // send the requested file
-  do {
-    n = read(fd, buffer, BUFFER_LEN);
-    if (write(sockfd, buffer, n) < 0) goto error;
-  } while (n > 0);
+#ifdef __linux__
+  n = sendfile(sockfd, fd, &offset, st.st_size);
+#else
+  n = sendfile(fd, sockfd, offset, &offset, 0, 0);
+#endif
+  if (n < 0) goto error;
 
   if (close(fd) < 0) goto error_close;
   printf("ok\n");
