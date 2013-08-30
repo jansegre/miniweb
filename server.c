@@ -200,11 +200,22 @@ int process_request(int sockfd, const char* path) {
 
   // send the requested file
 #ifdef __linux__
-  n = sendfile(sockfd, fd, &offset, st.st_size);
+  for (size_t size_to_send = st.st_size; size_to_send > 0;) {
+    ssize_t sent = sendfile(sockd, fd, &offset, size_to_send);
+    if (sent <= 0) {
+      if (sent < 0) goto error;
+      break;
+    }
+    offset += sent;
+    size_to_send -= sent;
+  }
 #else
-  n = sendfile(fd, sockfd, offset, &offset, 0, 0);
+  offset = 0;
+  do {
+    n = sendfile(fd, sockfd, offset, &offset, 0, 0);
+    if (n < 0) goto error;
+  } while (offset != 0);
 #endif
-  if (n < 0) goto error;
 
   if (close(fd) < 0) goto error_close;
   printf("ok\n");
