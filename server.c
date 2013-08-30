@@ -33,10 +33,15 @@
 #define MAX_FILENAME 1024
 #define PATH_TO_SERVE "./static/"
 
-int process_connection(int sockfd);
-int process_request(int sockfd);
+int process_connection(int sockfd, const char* path);
+int process_request(int sockfd, const char* path);
+int server(const int port, const char* path);
 
-int main() {
+int main(int argv, char* args[]) {
+  return server(LISTEN_PORT, PATH_TO_SERVE);
+}
+
+int server(const int port, const char* path) {
   int sockfd;
   struct sockaddr_in serv_addr;
   int optval;
@@ -56,7 +61,7 @@ int main() {
   memset(&serv_addr, 0, sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
   serv_addr.sin_addr.s_addr = LISTEN_ADDR;
-  serv_addr.sin_port = htons(LISTEN_PORT);
+  serv_addr.sin_port = htons(port);
 
   // bind to the address
   if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
@@ -71,7 +76,7 @@ int main() {
   //TODO spawn many threads for concurrent connections
   for (;;) {
     int n;
-    n = process_connection(sockfd);
+    n = process_connection(sockfd, path);
     if (n) goto error;
   }
 
@@ -84,7 +89,7 @@ error:
   return 1;
 }
 
-int process_connection(int sockfd) {
+int process_connection(int sockfd, const char* path) {
   int newsockfd, n;
   struct sockaddr cli_addr;
   socklen_t cli_addr_len;
@@ -104,7 +109,7 @@ int process_connection(int sockfd) {
   //}
 
   // process a single packet
-  n = process_request(newsockfd);
+  n = process_request(newsockfd, path);
   if (n < 0) goto error;
 
   close(newsockfd);
@@ -116,7 +121,7 @@ error:
   return 1;
 }
 
-int process_request(int sockfd) {
+int process_request(int sockfd, const char* path) {
   int fd, n;
   off_t offset;
   struct stat st;
@@ -124,8 +129,15 @@ int process_request(int sockfd) {
        verb[32],
        httpver[32],
        contentlen[32],
-       filename[MAX_FILENAME] = PATH_TO_SERVE;
-  char *url = filename + strlen(filename);
+       filename[MAX_FILENAME],
+       *url;
+
+  // copy the given path to our filename
+  strcpy(filename, path);
+
+  // the url var is so we can write the requested path
+  // to it and filename will be filled
+  url = filename + strlen(filename);
 
   // initialize fd so it always has a value
   fd = -1;
