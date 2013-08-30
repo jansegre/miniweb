@@ -37,9 +37,10 @@
 #define MAX_FILENAME 1024
 #define PATH_TO_SERVE "./static/"
 
+int server(const int port, const char* path);
 int process_connection(int sockfd, const char* path);
 int process_request(int sockfd, const char* path);
-int server(const int port, const char* path);
+int serve_file(int sockfd, const char* path, int serve);
 
 int main(int argc, char* argv[]) {
   int opt;
@@ -112,7 +113,7 @@ error:
 }
 
 int process_connection(int sockfd, const char* path) {
-  int newsockfd, n;
+  int newsockfd;
   struct sockaddr cli_addr;
   socklen_t cli_addr_len;
 
@@ -131,15 +132,8 @@ int process_connection(int sockfd, const char* path) {
   //}
 
   // process a single packet
-  n = process_request(newsockfd, path);
-  if (n < 0) goto error;
-  if (n > 0) goto warning;
+  if (process_request(newsockfd, path) != 0) goto error;
 
-  close(newsockfd);
-  return 0;
-
-warning:
-  fprintf(stderr, "WARN something bad happened processing the request");
   close(newsockfd);
   return 0;
 
@@ -150,28 +144,19 @@ error:
 }
 
 int process_request(int sockfd, const char* path) {
-  int fd, n;
-  struct stat st;
-  off_t offset;
-#ifdef __linux__
-  ssize_t sent;
-#endif
+  int n;
   char buffer[BUFFER_LEN],
        verb[32],
        httpver[32],
-       contentlen[32],
-       filename[MAX_FILENAME],
+       filepath[MAX_FILENAME],
        *url;
 
   // copy the given path to our filename
-  strcpy(filename, path);
+  strcpy(filepath, path);
 
   // the url var is so we can write the requested path
   // to it and filename will be filled
-  url = filename + strlen(filename);
-
-  // initialize fd so it always has a value
-  fd = -1;
+  url = filepath + strlen(filepath);
 
   // receive data
   n = read(sockfd, buffer, BUFFER_LEN);
@@ -181,50 +166,79 @@ int process_request(int sockfd, const char* path) {
 
   // parse the request
   sscanf(buffer, "%s %s %s", verb, url, httpver);
-  if (strcmp("GET", verb) != 0) {
-    write(sockfd, "HTTP/1.0 400 Method Not Supported\n\n", 35);
-    printf("requested method %s not supported\n", verb);
-    goto error;
-  }
-
-  //TODO check version (httpver)
 
   // local log
   printf("%s %s %s ... ", verb, url, httpver);
 
-  // try to open the requested file
-  fd = open(filename, O_RDONLY, S_IREAD);
-  if (fd < 0) {
-    write(sockfd, "HTTP/1.0 404 Not Found\n\n", 24);
-    printf("not found\n");
+  // check HTTP version
+  if (strcmp("HTTP/1.1", httpver) != 0 && strcmp("HTTP/1.0", httpver) != 0) {
+    fprintf(stderr, "version %s not supported, aborting.\n", httpver);
     goto error;
   }
 
+  // select the method
+  if (strcmp("GET", verb) == 0) {
+    // make a get request
+    return serve_file(sockfd, filepath, 1);
+  } else if (strcmp("HEAD", verb) == 0) {
+    // make a get request
+    return serve_file(sockfd, filepath, 0);
+  } else {
+    write(sockfd, "HTTP/1.0 400 Method Not Supported\n\n", 35);
+    fprintf(stderr, "requested method %s not supported.\n", verb);
+    return 0;
+  }
+
+error:
+  perror("ERROR processing the request");
+  return 1;
+}
+
+int serve_file(int sockfd, const char* filepath, int serve) {
+  int fd;
+  struct stat st;
+  char contentlen[32];
+
+  // try to open the requested file
+  fd = open(filepath, O_RDONLY, S_IREAD);
+  if (fd < 0) {
+    write(sockfd, "HTTP/1.0 404 Not Found\n\n", 24);
+    printf("not found\n");
+    fprintf(stderr, "ERROR ");
+    perror(filepath);
+    return 0;
+  }
+
   // check the file size
-  stat(filename, &st);
+  stat(filepath, &st);
   sprintf(contentlen, "Content-Length: %lli\n", (long long)st.st_size);
 
   // write headers
   write(sockfd, "HTTP/1.0 200 OK\n", 16);
   write(sockfd, "Server: nanoweb-0.0.1\n", 22);
-  write(sockfd, contentlen, strlen(contentlen));
+  if (serve)
+    write(sockfd, contentlen, strlen(contentlen));
   write(sockfd, "\n", 1);
 
   // send the requested file
-  offset = 0;
+  if (serve) {
+    off_t offset = 0;
+    ssize_t n = 0;
+    // linux and bsd have different signatures,
+    // which yield slightly different behaviour
 #if defined(__linux__)
-  sent = 0;
-  do {
-    sent = sendfile(sockfd, fd, &offset, st.st_size - sent);
-    offset += sent;
-    if (sent < 0) goto error;
-  } while (sent > 0);
+    do {
+      n = sendfile(sockfd, fd, &offset, st.st_size - n);
+      offset += n;
+      if (n < 0) goto error;
+    } while (n > 0);
 #elif defined(__APPLE__)
-  do {
-    n = sendfile(fd, sockfd, offset, &offset, 0, 0);
-    if (n < 0) goto error;
-  } while (offset != 0);
+    do {
+      n = sendfile(fd, sockfd, offset, &offset, 0, 0);
+      if (n < 0) goto error;
+    } while (offset != 0);
 #endif
+  }
 
   if (close(fd) < 0) goto error_close;
   printf("ok\n");
@@ -232,10 +246,10 @@ int process_request(int sockfd, const char* path) {
 
 error:
   if (fd > 0) if (close(fd) < 0) goto error_close;
-  perror("ERROR processing the request");
+  perror("ERROR serving file");
   return 1;
 
 error_close:
   perror("ERROR closing file");
-  return 1;
+  return 2;
 }
