@@ -1,5 +1,5 @@
 /*
- * nanoweb - A nano HTTP web server made for learning sockets.
+ * nanows - A nano HTTP web server made for learning sockets.
  * Copyright (C) 2013 Jan Segre
  *
  * This program is free software: you can redistribute it and/or modify
@@ -205,7 +205,7 @@ int serve_file(int sockfd, const char* filepath, int serve) {
 
   // write headers
   write(sockfd, "HTTP/1.0 200 OK\r\n", 17);
-  write(sockfd, "Server: nanoweb-0.0.1\r\n", 23);
+  write(sockfd, "Server: nanows-0.0.1\r\n", 22);
   if (serve)
     write(sockfd, contentlen, strlen(contentlen));
   write(sockfd, "\r\n", 2);
