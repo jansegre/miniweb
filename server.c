@@ -36,12 +36,12 @@
 #define BUFFER_LEN (1<<22)
 #define MAX_CONN_QUEUE 1024
 #define MAX_FILENAME 1024
-#define PATH_TO_SERVE "./static/"
+#define PATH_TO_SERVE "./"
 
 int server(const int port, const char* path);
 int process_connection(int sockfd, const char* path);
 int process_request(int sockfd, const char* path);
-int serve_file(int sockfd, const char* path, int serve);
+int serve_file(int sockfd, char* filepath, int serve);
 
 int main(int argc, char* argv[]) {
   int opt;
@@ -98,6 +98,7 @@ int server(const int port, const char* path) {
 
   // serial processing of conections
   //TODO spawn many threads for concurrent connections
+  printf("Listening on port %i.\n", port);
   for (;;) {
     int n;
     n = process_connection(sockfd, path);
@@ -184,14 +185,21 @@ error:
   return 1;
 }
 
-int serve_file(int sockfd, const char* filepath, int serve) {
+int serve_file(int sockfd, char* filepath, int serve) {
   int fd;
   struct stat st;
   char contentlen[32];
 
-  // try to open the requested file
-  fd = open(filepath, O_RDONLY, S_IREAD);
-  if (fd < 0) {
+  // check if it's a dir
+  stat(filepath, &st);
+  if (st.st_mode & S_IFDIR) {
+    char* path_append = filepath + strlen(filepath);
+    sprintf(path_append, "/index.html");
+    stat(filepath, &st);
+  }
+
+  // check if it's a file, if not it doesn't exist
+  if (!(st.st_mode & S_IFREG)) {
     write(sockfd, "HTTP/1.0 404 Not Found\r\n\r\n", 26);
     printf("not found\n");
     fprintf(stderr, "ERROR ");
@@ -199,13 +207,20 @@ int serve_file(int sockfd, const char* filepath, int serve) {
     return 0;
   }
 
-  // check the file size
-  stat(filepath, &st);
-  sprintf(contentlen, "Content-Length: %lli\r\n", (long long)st.st_size);
+  // try to open the requested file
+  fd = open(filepath, O_RDONLY, S_IREAD);
+  if (fd < 0) {
+    write(sockfd, "HTTP/1.0 403 Forbidden\r\n\r\n", 26);
+    printf("forbidden\n");
+    fprintf(stderr, "ERROR ");
+    perror(filepath);
+    return 0;
+  }
 
   // write headers
   write(sockfd, "HTTP/1.0 200 OK\r\n", 17);
   write(sockfd, "Server: nanows-0.0.1\r\n", 22);
+  sprintf(contentlen, "Content-Length: %lli\r\n", (long long)st.st_size);
   if (serve)
     write(sockfd, contentlen, strlen(contentlen));
   write(sockfd, "\r\n", 2);
