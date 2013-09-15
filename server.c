@@ -102,7 +102,7 @@ int server(const int port, const char* path) {
   for (;;) {
     int n;
     n = process_connection(sockfd, path);
-    if (n) goto error;
+    if (n < 0) goto error;
   }
 
   close(sockfd);
