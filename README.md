@@ -16,6 +16,14 @@ By default it will be compiled on `./bin/nanows`. To serve a given dir:
 
 That will run the server on port 8080 and serve the `/path/to/dir/` directory.
 
+Default port is `5001` and path to serve `.`. If you have `nanows` on your PATH
+you can go to any dir and type
+
+    nanows
+
+That it will serve that dir. Note that no protection is made not to serve files
+outside that directory yet.
+
 License
 -------
 
